@@ -12,14 +12,14 @@ from azure.core.credentials import AzureKeyCredential
 # Initialize Durable Functions app
 my_app = df.DFApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
-# Local Azurite blob storage client
-blob_service_client = BlobServiceClient(
-    account_url="http://127.0.0.1:10000/devstoreaccount1",
-    credential="Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
-)
+# Cloud Azure blob storage client using environment variable
+connection_string = os.environ.get("AzureWebJobsStorage")
+if not connection_string:
+    raise ValueError("AzureWebJobsStorage connection string not found in environment variables.")
+blob_service_client = BlobServiceClient.from_connection_string(connection_string)
 
 # Trigger: new blob uploaded to input container
-@my_app.blob_trigger(arg_name="myblob", path="input", connection="BLOB_STORAGE_ENDPOINT")
+@my_app.blob_trigger(arg_name="myblob", path="input", connection="AzureWebJobsStorage")
 @my_app.durable_client_input(client_name="client")
 async def blob_trigger(myblob: func.InputStream, client):
     logging.info(f"Triggered by blob: {myblob.name} ({myblob.length} bytes)")
