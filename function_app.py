@@ -18,6 +18,13 @@ if not connection_string:
     raise ValueError("AzureWebJobsStorage connection string not found in environment variables.")
 blob_service_client = BlobServiceClient.from_connection_string(connection_string)
 
+# Warmup trigger to reduce cold start (runs every 5 minutes)
+@my_app.timer_trigger(schedule="0 */5 * * * *", use_monitor=False)
+def warmup_function(my_timer: func.TimerRequest):
+    logging.info("Warmup trigger executed to pre-load dependencies and reduce cold start.")
+    # Add any pre-loading logic here if needed (e.g., initializing clients)
+    pass  # Placeholder; extend as needed
+
 # Trigger: new blob uploaded to input container
 @my_app.blob_trigger(arg_name="myblob", path="input", connection="AzureWebJobsStorage")
 @my_app.durable_client_input(client_name="client")
