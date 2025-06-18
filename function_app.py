@@ -2,7 +2,6 @@ import logging
 import os
 import json
 from datetime import datetime
-import openai  # 添加 OpenAI 库
 
 import azure.functions as func
 import azure.durable_functions as df
@@ -23,39 +22,45 @@ blob_service_client = BlobServiceClient.from_connection_string(connection_string
 @my_app.timer_trigger(schedule="0 */5 * * * *", use_monitor=False)
 def warmup_function(my_timer: func.TimerRequest):
     logging.info("Warmup trigger executed to pre-load dependencies and reduce cold start.")
-    # Optional: Pre-load clients or dependencies
-    pass
+    # Add any pre-loading logic here if needed (e.g., initializing clients)
+    pass  # Placeholder; extend as needed
 
 # Trigger: new blob uploaded to input container
-@my_app.blob_trigger(arg_name="myblob", path="input/{name}", connection="AzureWebJobsStorage")
+@my_app.blob_trigger(arg_name="myblob", path="input", connection="AzureWebJobsStorage")
 @my_app.durable_client_input(client_name="client")
 async def blob_trigger(myblob: func.InputStream, client):
     logging.info(f"Python blob trigger function processed blob "
                  f"Name: {myblob.name} "
                  f"Blob Size: {myblob.length} bytes")
-    blob_name = myblob.name.split("/")[1]  # Extract filename
-    await client.start_new("process_document", client_input=blob_name)
+    blobName = myblob.name.split("/")[1]
+    await client.start_new("process_document", client_input=blobName)
 
 # Orchestration function
 @my_app.orchestration_trigger(context_name="context")
 def process_document(context):
-    blob_name: str = context.get_input()
-    retry_options = df.RetryOptions(5000, 3)  # 5 seconds, 3 attempts
+    blobName: str = context.get_input()
 
-    extracted_text = yield context.call_activity_with_retry("analyze_pdf", retry_options, blob_name)
+    first_retry_interval_in_milliseconds = 5000
+    max_number_of_attempts = 3
+    retry_options = df.RetryOptions(first_retry_interval_in_milliseconds, max_number_of_attempts)
+
+    # Download the PDF from Blob Storage and use Document Intelligence Form Recognizer to analyze its contents.
+    extracted_text = yield context.call_activity_with_retry("analyze_pdf", retry_options, blobName)
+    # Send the analyzed contents to Azure OpenAI to generate a summary.
     summary = yield context.call_activity_with_retry("summarize_text", retry_options, extracted_text)
-    output = yield context.call_activity_with_retry("write_doc", retry_options, {"blobName": blob_name, "summary": summary})
+    # Save the summary to a new file and upload it back to storage.
+    output = yield context.call_activity_with_retry("write_doc", retry_options, {"blobName": blobName, "summary": summary})
 
     logging.info(f"Successfully uploaded summary to {output}")
     return output
 
 # Activity: Analyze PDF via Form Recognizer
-@my_app.activity_trigger(input_name="blobName")
+@my_app.activity_trigger(input_name='blobName')
 def analyze_pdf(blobName):
     logging.info(f"in analyze_pdf activity")
     container_client = blob_service_client.get_container_client("input")
     blob_client = container_client.get_blob_client(blobName)
-    blob = blob_client.download_blob().readall()  # Use readall() for complete content
+    blob = blob_client.download_blob().read()
 
     endpoint = os.environ["DocumentIntelligenceEndpoint"]
     key = os.environ["DocumentIntelligenceKey"]
@@ -67,38 +72,18 @@ def analyze_pdf(blobName):
     full_text = ""
     for page in result:
         for line in page.lines:
-            full_text += line.content + "\n"  # Add newline for readability
+            full_text += line.content
+
     return full_text
 
-# Activity: Summarize text using Azure OpenAI (direct API call)
+# Activity: Summarize text using Azure OpenAI
 @my_app.activity_trigger(input_name='results')
-def summarize_text(results):
-    logging.info(f"in summarize_text activity - fallback mode")
-
-
-    endpoint = os.environ["AzureOpenAI__Endpoint"]
-    key = os.environ["AzureOpenAI__Key"]
-    deployment = os.environ["OpenAIDeploymentName"]
-
-    openai.api_type = "azure"
-    openai.api_key = key
-    openai.api_base = endpoint
-    openai.api_version = "2023-05-15"  
-
-    try:
-        response = openai.ChatCompletion.create(
-            engine=deployment,
-            messages=[
-                {"role": "system", "content": "You are an assistant that summarizes documents."},
-                {"role": "user", "content": f"Can you explain what the following text is about? {results}"}
-            ]
-        )
-        content = response['choices'][0]['message']['content']
-        logging.info(f"OpenAI response: {content}")
-        return {"content": content}
-    except Exception as e:
-        logging.error(f"Failed to call OpenAI API: {e}")
-        raise
+@my_app.generic_input_binding(arg_name="response", type="textCompletion", data_type=func.DataType.STRING, prompt="Can you explain what the following text is about? {results}", model="%OpenAIDeploymentName%", connection="AzureOpenAI")
+def summarize_text(results, response: str):
+    logging.info(f"in summarize_text activity")
+    response_json = json.loads(response)
+    logging.info(response_json['content'])
+    return response_json
 
 # Activity: Write summary to output container
 @my_app.activity_trigger(input_name='results')
@@ -106,14 +91,10 @@ def write_doc(results):
     logging.info(f"in write_doc activity")
     container_client = blob_service_client.get_container_client("output")
 
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"{results['blobName']}-{timestamp}.txt"
+    summary = results['blobName'] + "-" + str(datetime.now())
+    sanitized_summary = summary.replace(".", "-")
+    filename = sanitized_summary + ".txt"
 
-    try:
-        content = results['summary'].get('content', 'No summary generated')
-        container_client.upload_blob(name=filename, data=content, overwrite=True)
-        logging.info(f"Summary uploaded as {filename}")
-        return filename
-    except Exception as e:
-        logging.error(f"Failed to upload summary: {e}")
-        raise
+    logging.info("uploading to blob " + results['summary']['content'])
+    container_client.upload_blob(name=filename, data=results['summary']['content'])
+    return str(filename)
