@@ -1,0 +1,18 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "BLOB_STORAGE_ENDPOINT": "UseDevelopmentStorage=true",
+    "DocumentIntelligenceEndpoint": "https://8917lab2.cognitiveservices.azure.com/",
+    "DocumentIntelligenceKey": "1DTYtrbq5aNk1bcF3YebFA6mhWH5DSNNyAmEd2XdTO9ErSUJFMM7JQQJ99BFACBsN54XJ3w3AAALACOGnKt4",
+    "COGNITIVE_SERVICES_ENDPOINT": "https://8917lab2.cognitiveservices.azure.com/",
+    "OpenAIEndpoint": "https://duan0-mc28020j-eastus2.services.ai.azure.com/",
+    "OpenAIKey": "5ANaJ7mcwhuAlwhtuTbc313DSq8tSZqTnTnzM44lJHTVKSbRlTqFJQQJ99BFACHYHv6XJ3w3AAAAACOGgpKh",
+    "OpenAIDeploymentName": "gpt-35-turbo",
+    "CHAT_MODEL_DEPLOYMENT_NAME": "gpt-35-turbo",
+
+    "AzureOpenAI__Endpoint": "https://duan0-mc28020j-eastus2.services.ai.azure.com/",
+    "AzureOpenAI__Key": "5ANaJ7mcwhuAlwhtuTbc313DSq8tSZqTnTnzM44lJHTVKSbRlTqFJQQJ99BFACHYHv6XJ3w3AAAAACOGgpKh"
+  }
+}
