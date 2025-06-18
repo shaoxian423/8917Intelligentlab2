@@ -398,4 +398,4 @@ FodyWeavers.xsd
 *.sln.iml
 
 .python_packages
-.venv
+.venv__azurite_db_blob__.json
