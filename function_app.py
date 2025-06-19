@@ -78,7 +78,7 @@ def analyze_pdf(blobName):
 
 # Activity: Summarize text using Azure OpenAI
 @my_app.activity_trigger(input_name='results')
-@my_app.generic_input_binding(arg_name="response", type="textCompletion", data_type=func.DataType.STRING, prompt="Can you explain what the following text is about? {results}", model="%OpenAIDeploymentName%", connection="AzureOpenAI")
+@my_app.generic_input_binding(arg_name="response", type="textCompletion", data_type=func.DataType.STRING, prompt="Can you explain what the following text is about? {results}", model="%OpenAIDeploymentName%", connection="AzureOpenAI__")
 def summarize_text(results, response: str):
     logging.info(f"in summarize_text activity")
     response_json = json.loads(response)
