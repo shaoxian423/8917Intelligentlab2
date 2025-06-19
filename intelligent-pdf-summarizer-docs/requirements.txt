@@ -1,0 +1,5 @@
+azure-functions
+azure-durable-functions
+azure-ai-formrecognizer==3.2.1
+azure-storage-blob
+openai
